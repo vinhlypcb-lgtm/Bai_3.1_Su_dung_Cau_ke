@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bài 3.1 - Sử dụng cầu kế để xác định bán kính (độ đọc 0,01 mm)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#1a1a2e;color:#fff}
+#container{display:flex;height:100vh;width:100vw}
+#cc{flex:1;position:relative;background:radial-gradient(circle,#2a2a4a 0%,#0f0f1a 100%);min-height:380px}
+#title{position:absolute;top:12px;left:12px;z-index:10;background:rgba(0,0,0,.7);padding:8px 14px;border-radius:8px}
+#title h1{font-size:1.1rem;color:#4ecca3}#title p{font-size:.8rem;color:#aaa}
+#title label.lb{display:inline;font-size:.78rem;color:#ccc;font-weight:normal}
+#title input{width:auto;vertical-align:middle}
+#bView{position:absolute;top:12px;right:12px;z-index:10;width:auto;padding:8px 14px}
+#zoomwrap{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:min(900px,calc(100% - 20px));z-index:10;background:rgba(0,0,0,.78);border:2px solid #4ecca3;border-radius:8px;padding:6px 8px}
+#zoomwrap .zt{display:flex;justify-content:space-between;font-size:.8rem;color:#4ecca3;margin-bottom:4px;gap:8px}
+#zoomwrap label{display:inline;color:#ccc;font-weight:normal;font-size:.8rem}
+#zoomwrap input{width:auto}
+#zoom{width:100%;height:190px;display:block;border-radius:4px}
+#panel{width:390px;background:#16213e;border-left:2px solid #0f3460;padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+h2{font-size:1rem;color:#e94560;border-bottom:2px solid #e94560;padding-bottom:4px;text-transform:uppercase;margin-top:6px}
+label{display:block;margin-bottom:4px;font-size:.85rem;color:#4ecca3;font-weight:bold}
+select,input,button{width:100%;padding:8px;border-radius:4px;border:1px solid transparent;background:#0f3460;color:#fff;font-size:.9rem;outline:none}
+input[type=range]{accent-color:#e94560;padding:0}
+button{background:#e94560;font-weight:bold;cursor:pointer}
+button:hover:not(:disabled){background:#ff6b81}
+button:disabled,input:disabled{opacity:.4;cursor:not-allowed}
+.ins{font-size:.8rem;line-height:1.4;color:#ccc;background:#1a1a2e;padding:8px;border-radius:4px}
+.chip{font-size:.85rem;padding:5px 8px;border-radius:4px;background:#1a1a2e;text-align:center;color:#aaa}
+.chip.on{color:#2ecc71;border:1px solid #2ecc71}
+#msg{font-size:.85rem;min-height:1.2em}
+.good{color:#2ecc71}.warn{color:#ffb142}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{border:1px solid #0f3460;padding:5px;text-align:center}th{background:#1a1a2e;color:#4ecca3}
+.row{display:flex;align-items:center;gap:6px;margin:4px 0}.row span{white-space:nowrap;font-size:.85rem}
+.two{display:flex;gap:6px;margin-top:4px}.two button{background:#0f3460}
+.ok{border-color:#2ecc71!important;background:#14532d!important}.bad{border-color:#e94560!important;background:#5a1a2a!important}
+#calc.lock{opacity:.35;pointer-events:none}
+details{font-size:.8rem;color:#ccc;background:#1a1a2e;border-radius:4px;padding:6px 8px;margin:4px 0;line-height:1.5}
+#final,#cmp{font-size:1rem;font-weight:bold;text-align:center;padding:8px;border:1px solid #e94560;border-radius:6px;margin-top:6px;line-height:1.6}
+#cmp{border-color:#4ecca3;font-size:.9rem}
+#h0line{font-size:.9rem;text-align:center;color:#ffb142}
+@media(max-width:900px){#container{flex-direction:column;height:auto}#cc{flex:none;height:78vh}#panel{width:100%}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+<div id="container">
+ <div id="cc">
+  <div id="title"><h1>THÍ NGHIỆM CẦU KẾ 3D</h1><p>Bài 3.1: Xác định bán kính của kính cầu (r = 29 mm)</p>
+   <input type="checkbox" id="lab" checked> <label class="lb" for="lab">Hiện tên bộ phận (a)–(e)</label></div>
+  <button id="bView">🔍 Xem thang đọc</button>
+  <div id="zoomwrap">
+   <div class="zt"><span>Kính lúp: thang đọc (c) thẳng đứng, vạch 0,5 mm — đĩa đọc (d), 50 vạch, độ đọc 0,01 mm</span><span style="white-space:nowrap"><input type="checkbox" id="hint"> <label for="hint">Gợi ý vạch trùng</label></span></div>
+   <canvas id="zoom"></canvas>
+  </div>
+ </div>
+ <div id="panel">
+  <h2>1. Chọn phần đo</h2>
+  <select id="mode">
+   <option value="h0">Bước 1: Đo h₀ trên gương phẳng</option>
+   <option value="cv">Bảng 8: Kính cầu lồi (H, h, R)</option>
+   <option value="cc">Bảng 9: Kính cầu lõm (H, h, R)</option>
+  </select>
+  <div id="h0line"></div>
+
+  <h2>2. Thao tác đo <span id="tag" style="color:#4ecca3"></span></h2>
+  <div class="ins" id="guide"></div>
+  <details><summary>Cách đọc số trên cầu kế</summary>
+   Cách đọc giống panme (Mục 2.2): <b>H = a + b</b>.<br>
+   <b>Bước 1:</b> đọc <b>a</b> trên thang đọc (c): vạch (1 mm hoặc 0,5 mm) nằm ngay dưới mép trên của đĩa đọc.<br>
+   <b>Bước 2:</b> đọc <b>b</b> = n × 0,01 mm, n là vạch trên đĩa đọc (d) trùng với đường chỉ thẳng đứng của thang.<br>
+   <b>Bước 3:</b> H = a + b. Ví dụ a = 0,5; n = 40 → H = 0,90 mm.<br>
+   <b>Chú ý số âm:</b> khi đĩa nằm dưới vạch 0, a là vạch ngay dưới mép đĩa (âm). Ví dụ a = −1,0; n = 21 → H = −1,0 + 0,21 = −0,79 mm.
+  </details>
+  <details><summary>Nguyên lý tính bán kính</summary>
+   Ba chân ngoài cách tâm r = 29 mm, chân giữa (a) đo độ cao h của chỏm cầu so với mặt phẳng ba chân.<br>
+   <b>h = |H̄ − h₀|</b> (kính lồi: H̄ &gt; h₀; kính lõm: H̄ &lt; h₀, lấy giá trị tuyệt đối).<br>
+   <b>R = r²/(2h) + h/2</b>
+  </details>
+  <button id="bPlace">① Đặt cầu kế lên mặt đo</button>
+  <div>
+   <label for="slider">② Vặn vít vi kế (e) (kéo thanh trượt):</label>
+   <input type="range" id="slider" min="-4" max="6" step="0.01" value="2">
+   <div class="two"><button id="bM">Vặn xuống 0,01</button><button id="bP">Vặn lên 0,01</button></div>
+   <div class="two"><button id="bM10">Xuống 0,10</button><button id="bP10">Lên 0,10</button></div>
+  </div>
+  <div class="chip" id="chip">—</div>
+  <div>
+   <label for="readIn">Số đọc được H = a + b (mm):</label>
+   <input type="number" id="readIn" step="0.01" placeholder="vd: 0.90 hoặc -0.79">
+  </div>
+  <button id="bRec">③ Ghi kết quả vào bảng</button>
+  <button id="bOut">④ Nhấc cầu kế ra</button>
+  <div id="msg"></div>
+
+  <h2>3. Bảng số liệu <span id="tabName" style="color:#4ecca3"></span></h2>
+  <table>
+   <thead><tr><th>Lần</th><th>Ghi chú</th><th id="thH">H<sub>i</sub> (mm)</th></tr></thead>
+   <tbody>
+    <tr><td>1</td><td id="n0">đặt lần 1</td><td id="v0">---</td></tr>
+    <tr id="r1"><td>2</td><td>đặt lại, xoay chân</td><td id="v1">---</td></tr>
+    <tr id="r2"><td>3</td><td>đặt lại, xoay chân</td><td id="v2">---</td></tr>
+   </tbody>
+  </table>
+
+  <h2>4. Xử lý số liệu</h2>
+  <div class="ins" id="h0note" style="display:none">Bước 1 chỉ cần đọc h₀ một lần. Sau khi ghi h₀, hãy chuyển sang Bảng 8 (kính lồi) và Bảng 9 (kính lõm).</div>
+  <div id="calc" class="lock">
+   <div class="ins">Giá trị trung bình: <b>H̄ = (H₁ + H₂ + H₃) / 3</b></div>
+   <div class="row"><span>H̄ =</span><input id="cAvg" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Sai số tuyệt đối ứng với mỗi lần đo (tự tính):</div>
+   <div class="row"><span>ΔH₁</span><input id="c1" type="number" step="any"><span>ΔH₂</span><input id="c2" type="number" step="any"><span>ΔH₃</span><input id="c3" type="number" step="any"></div>
+   <div class="ins">Sai số ngẫu nhiên (sai số tuyệt đối trung bình, tự tính):</div>
+   <div class="row"><span>ΔH̄ =</span><input id="cDm" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Sai số phép đo (tự tính):</div>
+   <div class="row"><span>ΔH =</span><input id="cDH" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Độ cao chỏm cầu (lấy giá trị dương):</div>
+   <div class="row"><span>h =</span><input id="ch" type="number" step="any"><span>mm</span></div>
+   <div class="ins">Bán kính của kính cầu, với r = 29 mm:</div>
+   <div class="row"><span>R =</span><input id="cR" type="number" step="any"><span>mm</span></div>
+   <details><summary>Gợi ý công thức</summary>
+    ΔHᵢ = |H̄ − Hᵢ|<br>ΔH̄ = (ΔH₁ + ΔH₂ + ΔH₃) / 3<br>ΔH = ΔH̄ + ΔH', với sai số dụng cụ ΔH' = 0,01 mm (một độ chia nhỏ nhất).<br>h = |H̄ − h₀|<br>R = r²/(2h) + h/2 (r = 29 mm, nhập R theo mm).<br>Viết kết quả: H = H̄ ± ΔH, ΔH lấy tối đa 2 chữ số có nghĩa, H̄ viết đến bậc thập phân tương ứng.
+   </details>
+   <button id="bCheck">Kiểm tra kết quả</button>
+   <button id="bShow" style="background:#0f3460;margin-top:6px">Xem đáp án</button>
+   <div id="final" style="display:none"></div>
+  </div>
+  <div id="cmp" style="display:none"></div>
+  <button id="bReset" style="background:#0f3460">Làm lại từ đầu</button>
+ </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const r2=x=>Math.round(x*100)/100;
+// ---------- SỐ LIỆU THÍ NGHIỆM (đơn vị mm) - sửa tại đây nếu muốn đổi số liệu ----------
+const R_LEG=29;             // bán kính vòng ba chân ngoài (r)
+const H0=0.06;              // số chỉ khi bốn chân cùng nằm trên mặt phẳng (gương phẳng)
+const RT=500;               // bán kính thật của kính cầu (chỉ dùng để vẽ 3D)
+const hT=RT-Math.sqrt(RT*RT-R_LEG*R_LEG);
+const TG={h0:[H0],cv:[0.90,0.91,0.89],cc:[-0.79,-0.78,-0.80]};   // số chỉ của cầu kế khi "tách"
+const DC=0.01,TOL=0.0055;
+const NAMES={h0:'(Bước 1: h₀)',cv:'(Bảng 8)',cc:'(Bảng 9)'};
+const TRY_ROT=[0,0.9,1.8];  // xoay cầu kế mỗi lần đặt lại
+const YB=6,DD=40;           // mặt đỡ cao 6 mm; đĩa đọc cao 40 mm so với đầu chân (khi chưa vặn)
+let S;
+const tv=()=>TG[S.mode][S.t];
+
+// ---------- THREE.JS ----------
+const cc=$('cc'),scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,cc.clientWidth/cc.clientHeight,0.1,3000);
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+const FULL={p:V3(40,100,190),t:V3(50,14,10)};
+camera.position.copy(FULL.p);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(cc.clientWidth,cc.clientHeight);cc.appendChild(renderer.domElement);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.target.copy(FULL.t);controls.enableDamping=true;controls.update();
+scene.add(new THREE.AmbientLight(0xffffff,.65));
+const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(50,150,150);scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x90e0ef,.4);dl2.position.set(-80,60,-80);scene.add(dl2);
+const steel=new THREE.MeshStandardMaterial({color:0xc0c0c0,roughness:.3,metalness:.8});
+const dark=new THREE.MeshStandardMaterial({color:0x33383d,roughness:.5,metalness:.5});
+const gold=new THREE.MeshStandardMaterial({color:0xd4af37,roughness:.35,metalness:.8});
+const tickM=new THREE.MeshBasicMaterial({color:0x111111});
+const redM=new THREE.MeshBasicMaterial({color:0xe94560});
+const glass=new THREE.MeshStandardMaterial({color:0x9bd6ff,roughness:.05,metalness:.1,transparent:true,opacity:.6,side:THREE.DoubleSide});
+const mirror=new THREE.MeshStandardMaterial({color:0xbfe3f0,roughness:.08,metalness:.7});
+const table=new THREE.Mesh(new THREE.PlaneGeometry(700,420),new THREE.MeshStandardMaterial({color:0x2c3e50}));
+table.rotation.x=-Math.PI/2;table.position.set(50,0,0);scene.add(table);
+
+function label(text,w,h,fg,bg){
+  const c=document.createElement('canvas');c.width=256;c.height=Math.round(256*h/w);
+  const x=c.getContext('2d');
+  if(bg){x.fillStyle=bg;x.fillRect(0,0,c.width,c.height);}
+  x.fillStyle=fg;x.font='bold '+Math.round(c.height*.55)+'px Arial';x.textAlign='center';x.textBaseline='middle';
+  x.fillText(text,c.width/2,c.height/2+2);
+  const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false,transparent:true}));
+  s.scale.set(w,h,1);s.renderOrder=10;return s;
+}
+
+// Mặt đỡ: gương phẳng / kính lồi / kính lõm
+const stage=new THREE.Group();scene.add(stage);
+function buildStage(){
+  while(stage.children.length){const c=stage.children[0];stage.remove(c);if(c.geometry)c.geometry.dispose();}
+  if(S.mode==='h0'){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(120,YB,120),mirror);m.position.y=YB/2;stage.add(m);
+    const l=label('Gương phẳng',34,8,'#ffffff','rgba(0,0,0,.55)');l.position.set(0,YB+4,66);stage.add(l);
+  }else{
+    const conv=S.mode==='cv',sag=r=>RT-Math.sqrt(RT*RT-r*r),LR=45,pts=[new THREE.Vector2(0,0),new THREE.Vector2(LR,0)];
+    for(let i=0;i<=60;i++){const r=LR*(1-i/60);pts.push(new THREE.Vector2(r,conv?YB+hT-sag(r):YB-hT+sag(r)));}
+    stage.add(new THREE.Mesh(new THREE.LatheGeometry(pts,96),glass));
+    const l=label(conv?'Kính cầu lồi':'Kính cầu lõm',34,8,'#ffffff','rgba(0,0,0,.55)');l.position.set(0,YB+4,58);stage.add(l);
+  }
+}
+
+// Cầu kế (1 đơn vị = 1 mm). Gốc nhóm = đầu ba chân ngoài.
+const sph=new THREE.Group();scene.add(sph);
+const REST=V3(105,0,45);
+for(let i=0;i<3;i++){
+  const a=Math.PI/2+i*2*Math.PI/3,px=R_LEG*Math.cos(a),pz=R_LEG*Math.sin(a);
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(1.3,.15,12,16),steel);leg.position.set(px,6,pz);sph.add(leg);
+  const arm=new THREE.Mesh(new THREE.BoxGeometry(R_LEG,3,5),dark);
+  arm.position.set(px/2,13.5,pz/2);arm.rotation.y=-a;sph.add(arm);
+}
+const hous=new THREE.Mesh(new THREE.CylinderGeometry(7,7,18,40),steel);hous.position.y=21;sph.add(hous);
+const ring=new THREE.Mesh(new THREE.CylinderGeometry(8.5,8.5,3,40),dark);ring.position.y=31.5;sph.add(ring);
+// thang đọc (c): thanh thẳng đứng gắn vào khung, vạch 0,5 mm, số 0 ở độ cao DD+3-H0
+const RZ=DD+3-H0,RX=-22;
+const rbar=new THREE.Mesh(new THREE.BoxGeometry(4.2,28,1.2),new THREE.MeshStandardMaterial({color:0xe6e8ea,roughness:.5,metalness:.2}));
+rbar.position.set(RX,45,0);sph.add(rbar);
+const rarm=new THREE.Mesh(new THREE.BoxGeometry(16,3,5),dark);rarm.position.set(-15,13.5,0);sph.add(rarm);
+const rpost=new THREE.Mesh(new THREE.BoxGeometry(3,18,3),dark);rpost.position.set(RX,22,0);sph.add(rpost);
+for(let k=-20;k<=30;k++){
+  const m=k/2,y=RZ+m,full=k%2===0,five=full&&((m%5)===0),len=five?3:(full?2:1.2);
+  const b=new THREE.Mesh(new THREE.BoxGeometry(len,.12,.1),tickM);b.position.set(RX+2.1-len/2,y,.65);sph.add(b);
+}
+[-10,-5,0,5,10,15].forEach(m=>{const l=label(String(m).replace('-','−'),4.6,2.6,'#111111');l.position.set(RX-4.6,RZ+m,.7);sph.add(l);});
+const idx=new THREE.Mesh(new THREE.BoxGeometry(.14,28,.14),redM);idx.position.set(RX+2.12,45,.66);sph.add(idx);   // đường chỉ của thang
+// phần chuyển động (vít vi kế + chân giữa + đĩa đọc): mv.position.y = H - H0
+const mv=new THREE.Group();sph.add(mv);
+const foot=new THREE.Mesh(new THREE.CylinderGeometry(1.3,.15,26,16),gold);foot.position.y=13;mv.add(foot);
+const shaft=new THREE.Mesh(new THREE.CylinderGeometry(4.5,4.5,44,32),steel);shaft.position.y=52;mv.add(shaft);
+const discG=new THREE.Group();mv.add(discG);
+const disc=new THREE.Mesh(new THREE.CylinderGeometry(19.5,19.5,3,64),steel);disc.position.y=DD+1.5;discG.add(disc);
+for(let k=0;k<50;k++){
+  const a=2*Math.PI*k/50,five=k%5===0,h=five?2.4:1.4;
+  const t=new THREE.Mesh(new THREE.BoxGeometry(.14,h,.14),tickM);
+  t.position.set(19.55*Math.cos(a),DD+1.5+(five?.2:.5)-0,19.55*Math.sin(a));t.position.y=DD+3-h/2-.1;discG.add(t);
+}
+const knob=new THREE.Mesh(new THREE.CylinderGeometry(7.5,7.5,10,40),dark);knob.position.y=79;discG.add(knob);
+for(let k=0;k<24;k++){const a=2*Math.PI*k/24,g=new THREE.Mesh(new THREE.BoxGeometry(.8,10,.8),steel);g.position.set(7.6*Math.cos(a),79,7.6*Math.sin(a));discG.add(g);}
+// nhãn bộ phận (a)-(e) như Hình 11
+const labs=new THREE.Group();sph.add(labs);
+[['(a) điểm đo',14,3,6],['(b) giá đỡ chân',42,14,-8],['(c) thang đọc',-44,50,0],['(d) đĩa đọc',34,50,0],['(e) vít vi kế',24,80,0]].forEach(([t,x,y,z])=>{
+  const l=label(t,27,6.5,'#00e5b0','rgba(0,0,0,.6)');l.position.set(x,y,z);labs.add(l);});
+$('lab').onchange=()=>{labs.visible=$('lab').checked;};
+
+// ---------- ANIMATION ----------
+let path=[],onDone=null,rotTarget=0,camGoal=null,viewIdx=0;
+const go=(p,ry,cb)=>{path=p;rotTarget=ry;onDone=cb;};
+const VIEWS=['🔍 Xem thang đọc','🔍 Xem điểm tiếp xúc','🔭 Xem toàn cảnh'];
+$('bView').onclick=()=>{
+  viewIdx=(viewIdx+1)%3;$('bView').textContent=VIEWS[viewIdx];
+  const b=sph.position;
+  if(viewIdx===1)camGoal={p:b.clone().add(V3(-8,46,64)),t:b.clone().add(V3(-12,40,0))};
+  else if(viewIdx===2)camGoal={p:b.clone().add(V3(14,12,38)),t:b.clone().add(V3(0,5,0))};
+  else camGoal=FULL;
+};
+$('bView').textContent=VIEWS[0];viewIdx=0;
+// vòng đầu tiên: bấm -> index 1 = thang đọc; chỉnh lại nhãn cho khớp
+$('bView').textContent=VIEWS[0];
+
+// ---------- KÍNH LÚP ĐỌC SỐ ----------
+const zc=$('zoom'),cx=zc.getContext('2d');
+function ln(x1,y1,x2,y2){cx.beginPath();cx.moveTo(x1,y1);cx.lineTo(x2,y2);cx.stroke();}
+function draw(v){
+  const W=zc.width=zc.clientWidth,H=zc.height=zc.clientHeight;
+  const sc=H/5.6,xe=Math.round(W*0.38),y0=Math.round(H*0.5),dx=13;
+  const k2=Math.floor(v*2+1e-9),a=k2/2;let n=(v-a)/0.01;n=Math.round(n*1e6)/1e6;
+  cx.fillStyle='#161a33';cx.fillRect(0,0,W,H);                        // không khí
+  const g=cx.createLinearGradient(0,y0,0,H);g.addColorStop(0,'#c9cfd4');g.addColorStop(1,'#7d858c');
+  cx.fillStyle=g;cx.fillRect(xe,y0,W-xe,H-y0);                        // đĩa đọc (thân đĩa dưới mép)
+  cx.fillStyle='#d9dde0';cx.fillRect(0,0,xe,H);                       // thang đọc
+  cx.lineWidth=1;cx.strokeStyle='#000';cx.fillStyle='#000';cx.font='bold 12px Arial';cx.textAlign='right';
+  for(let k=Math.floor((v-(H-y0)/sc)*2)-1;k<=Math.ceil((v+y0/sc)*2)+1;k++){
+    const m=k/2,y=y0-(m-v)*sc;if(y<2||y>H-2)continue;
+    const full=k%2===0;ln(xe-(full?(m%5===0?36:24):14),y,xe,y);
+    if(full)cx.fillText(String(m).replace('-','−'),xe-40,y+4);
+  }
+  if($('hint').checked){cx.strokeStyle='#00b894';cx.lineWidth=4;const y=y0+(v-a)*sc;ln(xe-44,y,xe,y);}
+  cx.lineWidth=1;cx.strokeStyle='#e94560';cx.lineWidth=2;cx.setLineDash([6,4]);ln(0,y0,W,y0);cx.setLineDash([]);  // mép trên đĩa
+  cx.strokeStyle='#000';cx.fillStyle='#000';cx.lineWidth=1;cx.textAlign='center';
+  for(let kk=Math.floor(n)-1;kk<=Math.floor(n)+Math.ceil((W-xe)/dx)+1;kk++){
+    const x=xe+(kk-n)*dx;if(x<xe-0.5||x>W-3)continue;
+    ln(x,y0+4,x,y0+(kk%5===0?36:22));
+    if(kk%5===0)cx.fillText(((kk%50)+50)%50,x,y0+52);
+  }
+  cx.strokeStyle='#111';cx.lineWidth=2;ln(xe,y0,xe,H-4);              // đường chỉ của thang
+  if($('hint').checked){cx.strokeStyle='#00b894';cx.lineWidth=4;ln(xe,y0+4,xe,y0+36);}
+  cx.textAlign='left';cx.fillStyle='#37474f';cx.font='11px Arial';
+  cx.fillText('Thang đọc (c): 0,5 mm / vạch',8,16);
+  cx.fillText('Đĩa đọc (d): 50 vạch, 1 vạch = 0,01 mm',xe+14,H-8);
+  cx.fillStyle='#ff7b93';cx.fillText('mép trên đĩa',xe+14,y0-6);
+  cx.fillStyle='#e94560';cx.fillText('đường chỉ',xe+4,H-22);
+}
+
+// ---------- LOGIC ----------
+let ac=null;
+function beep(){try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+  const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=1800;g.gain.value=.08;o.connect(g);g.connect(ac.destination);
+  o.start();g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+.08);o.stop(ac.currentTime+.09);}catch(e){}}
+const val=()=>parseFloat($('slider').value);
+function setV(v){v=r2(Math.min(6,Math.max(-4,v)));S.v=v;
+  mv.position.y=v-H0;discG.rotation.y=v*4*Math.PI-Math.PI;
+  $('slider').value=v;draw(v);chip();}
+const touching=()=>S.stage==='clamp'&&Math.round(S.v*100)===Math.round(tv()*100);
+function chip(){const c=$('chip'),t=touching();
+  if(S.stage==='clamp'){c.textContent=t?'✔ "Tách!" — vít vi kế đã trượt, dừng vặn':'… chân giữa (a) chưa chạm mặt đo';c.className='chip'+(t?' on':'');}
+  else{c.textContent='—';c.className='chip';}
+  if(t&&!S.touch)beep();S.touch=t;
+  $('bRec').disabled=!t;}
+function move(v){if(S.stage==='clamp')v=Math.max(v,tv());setV(v);}
+$('slider').addEventListener('input',e=>move(parseFloat(e.target.value)));
+$('bM').onclick=()=>move(S.v-0.01);$('bP').onclick=()=>move(S.v+0.01);
+$('bM10').onclick=()=>move(S.v-0.1);$('bP10').onclick=()=>move(S.v+0.1);
+$('hint').addEventListener('change',()=>draw(S.v));
+const openV=()=>Math.min(6,tv()+2.5);
+const msg=(t,c)=>{$('msg').textContent=t;$('msg').className=c||'';};
+const filled=m=>S.rd[m].filter(x=>x!==null).length;
+const fmt=x=>x===null?'---':x.toFixed(2);
+
+function ui(){
+  const st=S.stage,m=S.mode,n=TG[m].length,done=filled(m)>=n;
+  $('tag').textContent=m==='h0'?'— đo h₀':`— lần đo ${S.t+1}/3`;$('tabName').textContent=NAMES[m];
+  $('bPlace').disabled=st!=='rest';
+  const mvOK=st==='clamp';
+  $('slider').disabled=!mvOK;['bM','bP','bM10','bP10'].forEach(i=>$(i).disabled=!mvOK);
+  $('readIn').disabled=st!=='clamp';
+  $('bOut').disabled=st!=='recorded';
+  $('bOut').textContent=m==='h0'?'④ Nhấc cầu kế ra khỏi gương':(S.t<2?'④ Nhấc cầu kế ra, đặt lại để đo lần sau':'④ Nhấc cầu kế ra (hoàn tất 3 lần đo)');
+  const surf=m==='h0'?'tấm gương phẳng':(m==='cv'?'tấm kính cầu lồi (mặt lồi hướng lên)':'tấm kính cầu lõm (mặt lõm hướng lên)');
+  let g='';
+  if(st==='rest')g=`Cầu kế đang nằm trên bàn. Bấm ① để đặt cầu kế lên ${surf}${m==='h0'?'':` (lần ${S.t+1}/3)`}.`;
+  else if(st==='moving')g='Đang di chuyển cầu kế...';
+  else if(st==='clamp')g=touching()?'Đã nghe "tách": dừng vặn. Quan sát kính lúp: đọc a trên thang đọc, b = n × 0,01 trên đĩa đọc, rồi nhập H = a + b và bấm ③.':
+    (m==='h0'?'Vặn vít vi kế (e) xuống từ từ cho đến khi bốn chân cùng nằm trên một mặt phẳng và nghe "tách" thì dừng lại. Đọc h₀.':'Vặn vít vi kế (e) xuống từ từ cho đến khi chân giữa (a) chạm kính và nghe "tách" thì dừng lại. Chú ý: vặn nhẹ dần khi đến gần.');
+  else if(st==='recorded')g=m==='h0'?'Đã ghi h₀. Bấm ④ để nhấc cầu kế ra.':'Đã ghi kết quả. Bấm ④ để nhấc cầu kế ra, rồi đặt lại (xoay chân) để đo lần sau.';
+  else g=m==='h0'?'Đã có h₀. Chuyển sang Bảng 8 (kính lồi) và Bảng 9 (kính lõm).':'Đã đo xong 3 lần. Hãy xử lý số liệu ở mục 4.';
+  $('guide').textContent=g;
+  $('h0line').textContent='h₀ = '+(S.rd.h0[0]===null?'---':S.rd.h0[0].toFixed(2)+' mm');
+  $('r1').style.display=$('r2').style.display=m==='h0'?'none':'';
+  $('n0').textContent=m==='h0'?'trên gương phẳng':'đặt lần 1';
+  $('thH').innerHTML=m==='h0'?'h<sub>0</sub> (mm)':'H<sub>i</sub> (mm)';
+  for(let i=0;i<3;i++)$('v'+i).textContent=i<n?fmt(S.rd[m][i]):'---';
+  $('calc').style.display=m==='h0'?'none':'';
+  $('h0note').style.display=m==='h0'?'':'none';
+  $('calc').classList.toggle('lock',!done||m==='h0');
+  chip();
+}
+function setStageNow(){        // đưa cầu kế về chỗ nghỉ trên bàn
+  path=[];onDone=null;sph.position.copy(REST);sph.rotation.y=0;rotTarget=0;}
+$('bPlace').onclick=()=>{S.stage='moving';S.touch=false;setV(openV());msg('');ui();
+  go([V3(REST.x,70,REST.z),V3(0,70,0),V3(0,YB,0)],TRY_ROT[S.t],()=>{S.stage='clamp';ui();});};
+$('bRec').onclick=()=>{
+  const v=parseFloat($('readIn').value);
+  if(isNaN(v)){msg('Hãy nhập số đọc được vào ô trước.','warn');return;}
+  if(Math.abs(v-tv())>0.005){msg(`Số bạn nhập (${v}) chưa khớp số chỉ của cầu kế. Đọc lại: a (vạch thang đọc ngay dưới mép đĩa) + n × 0,01 (vạch đĩa trùng đường chỉ). Nhớ xét dấu âm nếu đĩa nằm dưới vạch 0.`,'warn');return;}
+  S.rd[S.mode][S.t]=v;S.stage='recorded';msg(`✔ Đã ghi ${S.mode==='h0'?'h₀':'lần '+(S.t+1)}: ${v.toFixed(2)} mm`,'good');ui();};
+$('bOut').onclick=()=>{S.stage='moving';S.touch=false;setV(openV());ui();
+  go([V3(0,70,0),V3(REST.x,70,REST.z),V3(REST.x,0,REST.z)],0,()=>{
+    const m=S.mode;
+    if(S.t<TG[m].length-1){S.t++;S.stage='rest';setV(openV());$('readIn').value='';msg('');}
+    else{S.stage='done';msg(m==='h0'?'Đã đo xong h₀!':'Hoàn tất 3 lần đo!','good');}
+    ui();});};
+$('mode').onchange=()=>{
+  const m=$('mode').value;
+  if(m!=='h0'&&S.rd.h0[0]===null){$('mode').value=S.mode;msg('Hãy làm Bước 1 (đo h₀ trên gương phẳng) trước.','warn');return;}
+  switchMode(m);};
+function switchMode(m){
+  S.mode=m;S.touch=false;setStageNow();
+  const f=filled(m),n=TG[m].length;
+  if(f>=n){S.t=n-1;S.stage='done';}else{S.t=f;S.stage='rest';}
+  buildStage();setV(openV());
+  ['readIn','cAvg','c1','c2','c3','cDm','cDH','ch','cR'].forEach(i=>{$(i).value='';$(i).classList.remove('ok','bad');});
+  $('final').style.display='none';msg('');ui();}
+$('bReset').onclick=reset;
+function reset(){
+  S={mode:'h0',t:0,stage:'rest',v:2,touch:false,rd:{h0:[null],cv:[null,null,null],cc:[null,null,null]},ok:{cv:false,cc:false}};
+  $('mode').value='h0';$('cmp').style.display='none';
+  switchMode('h0');}
+
+// ---------- XỬ LÝ SỐ LIỆU ----------
+function expected(m){
+  const a=S.rd[m],avg=(a[0]+a[1]+a[2])/3,di=a.map(x=>Math.abs(avg-x)),dm=(di[0]+di[1]+di[2])/3;
+  const h=Math.abs(avg-S.rd.h0[0]),R=R_LEG*R_LEG/(2*h)+h/2;
+  return{avg,di,dm,dH:dm+DC,h,R};}
+function showFinal(m,e){
+  const f=$('final');f.style.display='block';
+  const dec=Math.max(0,1-Math.floor(Math.log10(e.dH)));
+  f.innerHTML=`H = ${e.avg.toFixed(dec)} ± ${e.dH.toFixed(dec)} mm<br>h = ${e.h.toFixed(3)} mm<br>R = ${e.R.toFixed(1)} mm`;}
+function cmp(){
+  if(!(S.ok.cv&&S.ok.cc)){$('cmp').style.display='none';return;}
+  const a=expected('cv').R,b=expected('cc').R,d=Math.abs(a-b)/((a+b)/2)*100;
+  $('cmp').style.display='block';
+  $('cmp').innerHTML=`So sánh Bảng 8 và 9<br>R<sub>lồi</sub> = ${a.toFixed(1)} mm &nbsp; R<sub>lõm</sub> = ${b.toFixed(1)} mm<br>Chênh lệch ≈ ${d.toFixed(1)} %<br><span style="font-weight:normal;color:#ccc">Hãy viết nhận xét vào báo cáo: hai giá trị có gần nhau không, vì sao có sai lệch?</span>`;}
+function check(){
+  const m=S.mode;if(m==='h0')return;
+  const e=expected(m),el=id=>$(id);
+  const abs=[['cAvg',e.avg,0],['c1',e.di[0],0],['c2',e.di[1],0],['c3',e.di[2],0],['cDm',e.dm,0],['cDH',e.dH,0],['ch',e.h,1]];
+  let all=true;
+  abs.forEach(([id,x,ab])=>{let v=parseFloat(el(id).value);if(ab)v=Math.abs(v);
+    const ok=!isNaN(v)&&Math.abs(v-x)<=TOL;el(id).classList.toggle('ok',ok);el(id).classList.toggle('bad',!ok);if(!ok)all=false;});
+  const vr=parseFloat(el('cR').value),okR=!isNaN(vr)&&Math.abs(vr-e.R)/e.R<=0.01;
+  el('cR').classList.toggle('ok',okR);el('cR').classList.toggle('bad',!okR);if(!okR)all=false;
+  S.ok[m]=all;
+  if(all)showFinal(m,e);else{const f=$('final');f.style.display='block';f.textContent='Còn ô chưa đúng (viền đỏ). Tính lại nhé!';}
+  cmp();}
+$('bCheck').onclick=check;
+$('bShow').onclick=()=>{const m=S.mode;if(m==='h0')return;const e=expected(m);
+  $('cAvg').value=e.avg.toFixed(4);$('c1').value=e.di[0].toFixed(4);$('c2').value=e.di[1].toFixed(4);
+  $('c3').value=e.di[2].toFixed(4);$('cDm').value=e.dm.toFixed(4);$('cDH').value=e.dH.toFixed(4);
+  $('ch').value=e.h.toFixed(4);$('cR').value=e.R.toFixed(2);check();};
+
+reset();
+(function animate(){
+  requestAnimationFrame(animate);
+  if(path.length){const t=path[0],d=t.clone().sub(sph.position),l=d.length();
+    if(l<=3){sph.position.copy(t);path.shift();if(!path.length&&onDone){const f=onDone;onDone=null;f();}}
+    else sph.position.add(d.setLength(3));}
+  sph.rotation.y+=(rotTarget-sph.rotation.y)*0.1;
+  if(camGoal){camera.position.lerp(camGoal.p,0.08);controls.target.lerp(camGoal.t,0.08);
+    if(camera.position.distanceTo(camGoal.p)<0.3)camGoal=null;}
+  controls.update();renderer.render(scene,camera);
+})();
+window.addEventListener('resize',()=>{
+  camera.aspect=cc.clientWidth/cc.clientHeight;camera.updateProjectionMatrix();
+  renderer.setSize(cc.clientWidth,cc.clientHeight);draw(S.v);});
+</script>
+</body>
+</html>
